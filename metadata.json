@@ -1,0 +1,6 @@
+{
+  "name": "Fish Farm",
+  "description": "Multi-Project Fish Farm Management Software",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
