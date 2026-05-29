@@ -361,6 +361,184 @@ class FishFarmViewModel(application: Application) : AndroidViewModel(application
         }
     }
 
+    // Add a new pond for the active project
+    fun addPond(pondNumber: String, size: Double, waterCondition: String, fishSpecies: String, stockQuantity: Int, releaseDate: String) {
+        val currentProjId = _selectedProjectId.value
+        viewModelScope.launch {
+            val nextPond = Pond(
+                projectId = currentProjId,
+                pondNumber = pondNumber,
+                size = size,
+                waterCondition = waterCondition,
+                fishSpecies = fishSpecies,
+                stockQuantity = stockQuantity,
+                releaseDate = releaseDate
+            )
+            repository.addPond(nextPond)
+            repository.logAudit(
+                userId = _currentUser.value?.id ?: "UNKNOWN",
+                action = "Pond Added",
+                details = "Pond $pondNumber with $stockQuantity $fishSpecies",
+                projectId = currentProjId
+            )
+        }
+    }
+
+    // Add feed usage log
+    fun addFeedUsage(feedType: String, brand: String, quantity: Double, cost: Double, dailyConsumption: Double, date: String) {
+        val currentProjId = _selectedProjectId.value
+        viewModelScope.launch {
+            val usage = FeedUsage(
+                projectId = currentProjId,
+                feedType = feedType,
+                brand = brand,
+                quantity = quantity,
+                cost = cost,
+                dailyConsumption = dailyConsumption,
+                date = date
+            )
+            repository.addFeedUsage(usage)
+            repository.logAudit(
+                userId = _currentUser.value?.id ?: "UNKNOWN",
+                action = "Feed Added",
+                details = "$feedType ($brand) - $quantity kg",
+                projectId = currentProjId
+            )
+
+            // Cohesively add to accounting entries as Expense!
+            val entry = AccountEntry(
+                projectId = currentProjId,
+                type = "Expense",
+                category = "Feed",
+                amount = cost,
+                date = date,
+                description = "Auto recorded: Feed usage ($feedType by $brand)",
+                creatorId = _currentUser.value?.id ?: "SUPER-001",
+                status = "Approved"
+            )
+            // Save to database
+            db.accountEntryDao().insertEntry(entry)
+        }
+    }
+
+    // Update pond water conditions with pH, Temp, etc.
+    fun updatePondWaterCondition(pondId: Int, newWaterCondition: String) {
+        val currentProjId = _selectedProjectId.value
+        viewModelScope.launch {
+            val allPonds = repository.getProjectPonds(currentProjId).first()
+            val targetPond = allPonds.find { it.id == pondId }
+            if (targetPond != null) {
+                val updated = targetPond.copy(waterCondition = newWaterCondition)
+                repository.addPond(updated) // REPLACE operation
+                repository.logAudit(
+                    userId = _currentUser.value?.id ?: "UNKNOWN",
+                    action = "Water Quality Updated",
+                    details = "Pond ${targetPond.pondNumber}: $newWaterCondition",
+                    projectId = currentProjId
+                )
+            }
+        }
+    }
+
+    // Add stock history log / Sampling or mortality tracking or growth rates
+    fun addFishStockHistory(pondId: Int, quantity: Int, species: String, weight: Double, growthRate: String, mortality: Int, date: String) {
+        val currentProjId = _selectedProjectId.value
+        viewModelScope.launch {
+            val history = FishStockHistory(
+                pondId = pondId,
+                quantity = quantity,
+                species = species,
+                weight = weight,
+                growthRate = growthRate,
+                mortality = mortality,
+                harvestStatus = "Stocked",
+                date = date
+            )
+            repository.addFishStockHistory(history)
+            
+            // Also deduct mortality from total pond stock count if needed (or just log it)
+            val allPonds = repository.getProjectPonds(currentProjId).first()
+            val targetPond = allPonds.find { it.id == pondId }
+            if (targetPond != null && mortality > 0) {
+                val nextStock = maxOf(0, targetPond.stockQuantity - mortality)
+                repository.addPond(targetPond.copy(stockQuantity = nextStock))
+            }
+            
+            repository.logAudit(
+                userId = _currentUser.value?.id ?: "UNKNOWN",
+                action = "Stock/Sampling Logged",
+                details = "Pond ID $pondId: $species average weight $weight g, mortality $mortality",
+                projectId = currentProjId
+            )
+        }
+    }
+
+    // Super Admin Create Project User / Superuser ID
+    fun createProjectUser(username: String, fullName: String, role: String, projectId: Int, rawPassword: String, mobile: String, email: String) {
+        viewModelScope.launch {
+            val prefix = when(role) {
+                "Super Admin" -> "SUPER"
+                "Project Admin" -> "ADMIN"
+                "Member" -> "MEM"
+                else -> "USR"
+            }
+            val uniqueId = "$prefix-${(10000..99999).random()}"
+            val newUser = User(
+                id = uniqueId,
+                username = username.trim().lowercase(Locale.getDefault()),
+                fullName = fullName,
+                mobile = mobile,
+                email = email,
+                role = role,
+                projectAssignmentId = if (role == "Super Admin") 0 else projectId,
+                isFirstLogin = true, // Forces first-time setup / passcode change
+                isVerified = false,
+                currentPasswordHash = rawPassword,
+                defaultPasswordActive = true
+            )
+            repository.insertUser(newUser)
+        }
+    }
+
+    // Reset database to completely fresh state
+    fun resetDatabase() {
+        viewModelScope.launch {
+            try {
+                // Clear all database tables
+                db.clearAllTables()
+
+                // Re-seed ONLY the default pristine Super Admin account
+                repository.insertUser(
+                    User(
+                        id = "SUPER-001",
+                        username = "admin",
+                        fullName = "Super Admin Md. Rakib Hasan",
+                        mobile = "+8801712345678",
+                        email = "mdhridaymiah@gmail.com",
+                        role = "Super Admin",
+                        projectAssignmentId = 0,
+                        isFirstLogin = true, // Force setup wizard
+                        isVerified = false,
+                        currentPasswordHash = "11",
+                        defaultPasswordActive = true
+                    )
+                )
+
+                // Log out & go to login screen
+                _currentUser.value = null
+                _authState.value = "LOGIN_ID_PASS"
+                _currentScreen.value = "home"
+                _loginError.value = if (_language.value == "বাংলা") {
+                    "সফটওয়্যার টি সফলভাবে রিসেট করা হয়েছে। অনুগ্রহ করে ইউজারনেম 'admin' এবং পাসওয়ার্ড '11' দিয়ে লগইন করে নতুন প্রজেক্ট ও হিসাব শুরু করুন।"
+                } else {
+                    "Software successfully reset. Please log in with username 'admin' and password '11' to initialize fresh projects & ledger books."
+                }
+            } catch (e: Exception) {
+                Log.e("ResetError", "Error resetting database: ${e.message}")
+            }
+        }
+    }
+
     // Casting vote: Approved or Rejected
     fun voteRequest(requestId: Int, approve: Boolean, reason: String = "") {
         val user = _currentUser.value ?: return

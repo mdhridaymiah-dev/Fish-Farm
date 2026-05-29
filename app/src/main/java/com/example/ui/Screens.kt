@@ -216,8 +216,8 @@ fun LoginScreen(viewModel: FishFarmViewModel) {
     val loginAttempts by viewModel.failedAttempts.collectAsState()
     val cooldown by viewModel.cooldownTime.collectAsState()
 
-    var username by remember { mutableStateOf("rakib_project") } // Admin demo username pre-filled
-    var password by remember { mutableStateOf("admin123") }
+    var username by remember { mutableStateOf("") }
+    var password by remember { mutableStateOf("") }
     var passwordVisible by remember { mutableStateOf(false) }
     var rememberDevice by remember { mutableStateOf(false) }
 
@@ -1489,6 +1489,9 @@ fun ProfileControlScreen(viewModel: FishFarmViewModel) {
     val context = LocalContext.current
 
     var showChangePass by remember { mutableStateOf(false) }
+    var showCreateUserDialog by remember { mutableStateOf(false) }
+    var showResetConfirmDialog by remember { mutableStateOf(false) }
+    val projects by viewModel.projects.collectAsState()
 
     var currentPass by remember { mutableStateOf("") }
     var newPass by remember { mutableStateOf("") }
@@ -1587,6 +1590,20 @@ fun ProfileControlScreen(viewModel: FishFarmViewModel) {
                         leadingContent = { Icon(Icons.Default.Security, contentDescription = "Audit Logs") },
                         modifier = Modifier.clickable { viewModel.navigateTo("audit_logs") }
                     )
+                    if (currentUser?.role == "Super Admin") {
+                        HorizontalDivider(color = Color.LightGray.copy(alpha = 0.5f))
+                        ListItem(
+                            headlineContent = { Text(if (lang == "বাংলা") "নতুন ইউজার তৈরি করুন" else "Create Project User / Superuser", fontWeight = FontWeight.SemiBold, color = Color(0xFF0D9488)) },
+                            leadingContent = { Icon(Icons.Default.PersonAdd, contentDescription = "Create User", tint = Color(0xFF0D9488)) },
+                            modifier = Modifier.clickable { showCreateUserDialog = true }
+                        )
+                        HorizontalDivider(color = Color.LightGray.copy(alpha = 0.5f))
+                        ListItem(
+                            headlineContent = { Text(if (lang == "বাংলা") "সফটওয়্যার রিসেট করুন" else "Reset Software (সমস্ত তথ্য মুছুন)", fontWeight = FontWeight.SemiBold, color = Color.Red) },
+                            leadingContent = { Icon(Icons.Default.Refresh, contentDescription = "Reset", tint = Color.Red) },
+                            modifier = Modifier.clickable { showResetConfirmDialog = true }
+                        )
+                    }
                 }
             }
 
@@ -1654,6 +1671,202 @@ fun ProfileControlScreen(viewModel: FishFarmViewModel) {
             }
 
             Spacer(modifier = Modifier.height(40.dp))
+        }
+    }
+
+    if (showResetConfirmDialog) {
+        AlertDialog(
+            onDismissRequest = { showResetConfirmDialog = false },
+            title = { Text(if (lang == "বাংলা") "সফটওয়্যার রিসেট নিশ্চিতকরণ" else "Reset Software Confirmation", fontWeight = FontWeight.Bold) },
+            text = {
+                Text(
+                    if (lang == "বাংলা")
+                        "আপনি কি নিশ্চিত যে আপনি সমস্ত প্রজেক্ট, ইউজার হিসাব, এবং লেনদেনের তথ্য মুছে সফটওয়্যারটি রিসেট করতে চান? এই কাজটির পর শুধুমাত্র 'admin' (পাসওয়ার্ড: '11') লগইন সচল থাকবে।"
+                    else
+                        "Are you sure you want to wipe all projects, user accounts, and financial transactions? This will reset the application. Only 'admin' (password: '11') will remain active."
+                )
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        showResetConfirmDialog = false
+                        viewModel.resetDatabase()
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = Color.Red)
+                ) {
+                    Text(if (lang == "বাংলা") "হ্যাঁ, রিসেট করুন" else "Yes, Reset Everything")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showResetConfirmDialog = false }) {
+                    Text(if (lang == "বাংলা") "বাতিল" else "Cancel")
+                }
+            }
+        )
+    }
+
+    if (showCreateUserDialog) {
+        var newUsername by remember { mutableStateOf("") }
+        var newFullName by remember { mutableStateOf("") }
+        var newRole by remember { mutableStateOf("Project Admin") }
+        var newMobile by remember { mutableStateOf("") }
+        var newEmail by remember { mutableStateOf("") }
+        var newPassword by remember { mutableStateOf("") }
+        var selectedProjectIdForUser by remember { mutableStateOf(projects.firstOrNull()?.id ?: 1) }
+        var projMenuExpanded by remember { mutableStateOf(false) }
+        var roleMenuExpanded by remember { mutableStateOf(false) }
+
+        val rolesList = listOf("Super Admin", "Project Admin", "Member", "Auditor")
+
+        Dialog(onDismissRequest = { showCreateUserDialog = false }) {
+            Card(
+                shape = RoundedCornerShape(16.dp),
+                colors = CardDefaults.cardColors(containerColor = Color.White),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .verticalScroll(rememberScrollState())
+            ) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Text(
+                        text = if (lang == "বাংলা") "নতুন প্রজেক্ট ইউজার তৈরি করুন" else "Create New Project User / Superuser",
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 16.sp,
+                        color = Color(0xFF0F766E)
+                    )
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    OutlinedTextField(
+                        value = newFullName,
+                        onValueChange = { newFullName = it },
+                        label = { Text(if (lang == "বাংলা") "পূর্ণ নাম" else "Full Name") },
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    OutlinedTextField(
+                        value = newUsername,
+                        onValueChange = { newUsername = it.replace(" ", "").lowercase(Locale.getDefault()) },
+                        label = { Text(if (lang == "বাংলা") "ইউজারনেম (স্পেস ছাড়া)" else "Username (no spaces)") },
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    OutlinedTextField(
+                        value = newPassword,
+                        onValueChange = { newPassword = it },
+                        label = { Text(if (lang == "বাংলা") "পাসওয়ার্ড (ডিফল্ট: '11')" else "Password (default: '11')") },
+                        modifier = Modifier.fillMaxWidth(),
+                        placeholder = { Text("11") }
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    OutlinedTextField(
+                        value = newMobile,
+                        onValueChange = { newMobile = it },
+                        label = { Text(if (lang == "বাংলা") "মোবাইল নাম্বার" else "Mobile Number") },
+                        modifier = Modifier.fillMaxWidth(),
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone)
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    OutlinedTextField(
+                        value = newEmail,
+                        onValueChange = { newEmail = it },
+                        label = { Text(if (lang == "বাংলা") "ইমেইল এড্রেস" else "Email Address") },
+                        modifier = Modifier.fillMaxWidth(),
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email)
+                    )
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    Text(if (lang == "বাংলা") "ভূমিকা নির্বাচন:" else "Select Role:", fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                    Box(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
+                        OutlinedButton(
+                            onClick = { roleMenuExpanded = true },
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                                Text(newRole)
+                                Icon(Icons.Default.ArrowDropDown, contentDescription = null)
+                            }
+                        }
+                        DropdownMenu(expanded = roleMenuExpanded, onDismissRequest = { roleMenuExpanded = false }) {
+                            rolesList.forEach { r ->
+                                DropdownMenuItem(
+                                    text = { Text(r) },
+                                    onClick = {
+                                        newRole = r
+                                        roleMenuExpanded = false
+                                    }
+                                )
+                            }
+                        }
+                    }
+
+                    if (newRole != "Super Admin") {
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text(if (lang == "বাংলা") "প্রজেক্ট অ্যাসাইনমেন্ট:" else "Assign to Project:", fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                        Box(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
+                            val selectedProjName = projects.find { it.id == selectedProjectIdForUser }?.name ?: ""
+                            OutlinedButton(
+                                onClick = { projMenuExpanded = true },
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                                    Text(selectedProjName)
+                                    Icon(Icons.Default.ArrowDropDown, contentDescription = null)
+                                }
+                            }
+                            DropdownMenu(expanded = projMenuExpanded, onDismissRequest = { projMenuExpanded = false }) {
+                                projects.forEach { p ->
+                                    DropdownMenuItem(
+                                        text = { Text(p.name) },
+                                        onClick = {
+                                            selectedProjectIdForUser = p.id
+                                            projMenuExpanded = false
+                                        }
+                                    )
+                                }
+                            }
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(20.dp))
+
+                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                        TextButton(onClick = { showCreateUserDialog = false }) {
+                            Text(if (lang == "বাংলা") "বাতিল" else "Cancel")
+                        }
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Button(
+                            onClick = {
+                                if (newUsername.isNotBlank() && newFullName.isNotBlank()) {
+                                    val finalPassword = if (newPassword.isBlank()) "11" else newPassword
+                                    val finalMobile = if (newMobile.isBlank()) "+8801700000000" else newMobile
+                                    val finalEmail = if (newEmail.isBlank()) "user@example.com" else newEmail
+
+                                    viewModel.createProjectUser(
+                                        username = newUsername,
+                                        fullName = newFullName,
+                                        role = newRole,
+                                        projectId = selectedProjectIdForUser,
+                                        rawPassword = finalPassword,
+                                        mobile = finalMobile,
+                                        email = finalEmail
+                                    )
+                                    showCreateUserDialog = false
+                                    Toast.makeText(context, if (lang == "বাংলা") "ইউজার সফলভাবে তৈরি হয়েছে!" else "User created successfully!", Toast.LENGTH_SHORT).show()
+                                } else {
+                                    Toast.makeText(context, if (lang == "বাংলা") "সবগুলো ঘর পূরণ করুন!" else "Please fill all fields!", Toast.LENGTH_SHORT).show()
+                                }
+                            },
+                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF0D9488)),
+                            shape = RoundedCornerShape(12.dp)
+                        ) {
+                            Text(if (lang == "বাংলা") "তৈরি করুন" else "Create")
+                        }
+                    }
+                }
+            }
         }
     }
 
@@ -2295,28 +2508,742 @@ fun NotificationsAlertsTab(viewModel: FishFarmViewModel) {
 @Composable
 fun PondsPerformanceGrid(viewModel: FishFarmViewModel) {
     val ponds by viewModel.projectPonds.collectAsState()
+    val feedUsages by viewModel.projectFeedUsage.collectAsState()
     val lang by viewModel.language.collectAsState()
+    val currentUser by viewModel.currentUser.collectAsState()
+    val context = LocalContext.current
 
-    Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
-        Text("Fish Ponds Condition Monitoring", fontWeight = FontWeight.Bold, fontSize = 18.sp, color = Color(0xFF003827))
-        Spacer(modifier = Modifier.height(12.dp))
+    var selectedSubTab by remember { mutableStateOf(0) } // 0: Ponds, 1: Feeds, 2: Stock History
 
-        LazyColumn(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            items(ponds) { pond ->
-                Card(
-                    colors = CardDefaults.cardColors(containerColor = Color.White),
-                    border = BorderStroke(1.dp, Color.LightGray.copy(alpha = 0.5f))
+    // Dialog flags
+    var showAddPondDialog by remember { mutableStateOf(false) }
+    var showAddFeedDialog by remember { mutableStateOf(false) }
+    var showUpdateWaterDialog by remember { mutableStateOf<Pond?>(null) }
+    var showAddStockHistoryDialog by remember { mutableStateOf<Pond?>(null) }
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Color(0xFFF8FAFC)) // Soft cool grey
+            .padding(16.dp)
+    ) {
+        // High level title
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column {
+                Text(
+                    text = if (lang == "বাংলা") "মৎস্য খামার ও পুকুর মনিটরিং" else "Fishery & Ponds Control Panel",
+                    fontWeight = FontWeight.ExtraBold,
+                    fontSize = 18.sp,
+                    color = Color(0xFF0F172A)
+                )
+                Text(
+                    text = if (lang == "বাংলা") "পানির মান, মাছের বৃদ্ধি ও খাদ্যের হিসাব" else "Pond conditions, feedings, and growth trackers",
+                    fontSize = 11.sp,
+                    color = Color(0xFF64748B)
+                )
+            }
+            if (currentUser?.role == "Super Admin" || currentUser?.role == "Project Admin") {
+                Button(
+                    onClick = { showAddPondDialog = true },
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF0D9488)),
+                    shape = RoundedCornerShape(12.dp)
                 ) {
-                    Column(modifier = Modifier.padding(16.dp)) {
-                        Row(horizontalArrangement = Arrangement.SpaceBetween, modifier = Modifier.fillMaxWidth()) {
-                            Text(pond.pondNumber, fontWeight = FontWeight.Bold, fontSize = 15.sp, color = Color(0xFF006C4F))
-                            Text("Size: ${pond.size} Acres", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                    Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(16.dp))
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text(if (lang == "বাংলা") "পুকুর যোগ" else "Add Pond", fontSize = 11.sp)
+                }
+            }
+        }
+
+        Spacer(modifier = Modifier.height(14.dp))
+
+        // Custom M3 Segmented Control or Subtab Row
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(12.dp))
+                .background(Color(0xFFE2E8F0))
+                .padding(4.dp),
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            val tabs = if (lang == "বাংলা") {
+                listOf("পুকুর সমূহ", "খাদ্য ও পুষ্টি", "বৃদ্ধি ও স্টক")
+            } else {
+                listOf("Ponds List", "Feed Logs", "Growth & Stock")
+            }
+            tabs.forEachIndexed { index, title ->
+                Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(if (selectedSubTab == index) Color(0xFF0D9488) else Color.Transparent)
+                        .clickable { selectedSubTab = index }
+                        .padding(vertical = 8.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = title,
+                        color = if (selectedSubTab == index) Color.White else Color(0xFF475569),
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 12.sp
+                    )
+                }
+            }
+        }
+
+        Spacer(modifier = Modifier.height(14.dp))
+
+        when (selectedSubTab) {
+            0 -> {
+                // Ponds tab list
+                if (ponds.isEmpty()) {
+                    Box(
+                        modifier = Modifier.fillMaxSize().weight(1f),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = if (lang == "বাংলা") "কোন পুকুর পাওয়া যায়নি! পুকুর যোগ করুন।" else "No active ponds registered found. Add a pond above.",
+                            color = Color.Gray,
+                            fontSize = 14.sp
+                        )
+                    }
+                } else {
+                    LazyColumn(
+                        verticalArrangement = Arrangement.spacedBy(10.dp),
+                        modifier = Modifier.fillMaxSize().weight(1f)
+                    ) {
+                        items(ponds) { pond ->
+                            Card(
+                                shape = RoundedCornerShape(16.dp),
+                                colors = CardDefaults.cardColors(containerColor = Color.White),
+                                border = BorderStroke(1.dp, Color(0xFFE2E8F0)),
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Column(modifier = Modifier.padding(14.dp)) {
+                                    Row(
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        modifier = Modifier.fillMaxWidth(),
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Text(
+                                            text = pond.pondNumber,
+                                            fontWeight = FontWeight.ExtraBold,
+                                            fontSize = 15.sp,
+                                            color = Color(0xFF0F766E)
+                                        )
+                                        Box(
+                                            modifier = Modifier
+                                                .clip(RoundedCornerShape(6.dp))
+                                                .background(Color(0xFFF0FDFA))
+                                                .padding(horizontal = 8.dp, vertical = 2.dp)
+                                        ) {
+                                            Text(
+                                                text = "${pond.size} Acres",
+                                                fontSize = 11.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                color = Color(0xFF0D9488)
+                                            )
+                                        }
+                                    }
+                                    Spacer(modifier = Modifier.height(8.dp))
+
+                                    // Parameters Row grid
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                                    ) {
+                                        Column(modifier = Modifier.weight(1f)) {
+                                            Text(
+                                                text = if (lang == "বাংলা") "মাছের জাত" else "Species",
+                                                fontSize = 10.sp,
+                                                color = Color.Gray
+                                            )
+                                            Text(
+                                                text = pond.fishSpecies,
+                                                fontSize = 12.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                color = Color(0xFF1E293B)
+                                            )
+                                        }
+                                        Column(modifier = Modifier.weight(1f)) {
+                                            Text(
+                                                text = if (lang == "বাংলা") "স্টক অবমুক্তকরণ" else "Stock Quantity",
+                                                fontSize = 10.sp,
+                                                color = Color.Gray
+                                            )
+                                            Text(
+                                                text = "${pond.stockQuantity} tails",
+                                                fontSize = 12.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                color = Color(0xFF1E293B)
+                                            )
+                                        }
+                                    }
+
+                                    Spacer(modifier = Modifier.height(8.dp))
+
+                                    // Water info parameters box
+                                    Box(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .clip(RoundedCornerShape(10.dp))
+                                            .background(Color(0xFFF1F5F9))
+                                            .padding(8.dp)
+                                    ) {
+                                        Column {
+                                            Text(
+                                                text = if (lang == "বাংলা") "পানির গুণগত মান (Water Metrics)" else "Water Quality Metrics",
+                                                fontSize = 10.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                color = Color(0xFF475569)
+                                            )
+                                            Spacer(modifier = Modifier.height(2.dp))
+                                            Text(
+                                                text = pond.waterCondition,
+                                                fontSize = 12.sp,
+                                                fontWeight = FontWeight.SemiBold,
+                                                color = Color(0xFF0D5D8E)
+                                            )
+                                            Spacer(modifier = Modifier.height(2.dp))
+                                            Text(
+                                                text = (if (lang == "বাংলা") "ছাড়ার তারিখ: " else "Release Date: ") + pond.releaseDate,
+                                                fontSize = 10.sp,
+                                                color = Color.Gray
+                                            )
+                                        }
+                                    }
+
+                                    // Actions inside each pond card
+                                    if (currentUser?.role == "Super Admin" || currentUser?.role == "Project Admin" || currentUser?.role == "Member") {
+                                        Spacer(modifier = Modifier.height(10.dp))
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                        ) {
+                                            OutlinedButton(
+                                                onClick = { showUpdateWaterDialog = pond },
+                                                shape = RoundedCornerShape(10.dp),
+                                                border = BorderStroke(1.dp, Color(0xFF0D9488)),
+                                                modifier = Modifier.weight(1f),
+                                                contentPadding = PaddingValues(horizontal = 4.dp, vertical = 2.dp)
+                                            ) {
+                                                Icon(
+                                                    Icons.Default.Language,
+                                                    contentDescription = null,
+                                                    tint = Color(0xFF0D9488),
+                                                    modifier = Modifier.size(12.dp)
+                                                )
+                                                Spacer(modifier = Modifier.width(4.dp))
+                                                Text(
+                                                    text = if (lang == "বাংলা") "পানির মান" else "Water Quality",
+                                                    fontSize = 10.sp,
+                                                    color = Color(0xFF0D9488)
+                                                )
+                                            }
+
+                                            OutlinedButton(
+                                                onClick = { showAddStockHistoryDialog = pond },
+                                                shape = RoundedCornerShape(10.dp),
+                                                border = BorderStroke(1.dp, Color(0xFF00838F)),
+                                                modifier = Modifier.weight(1.2f),
+                                                contentPadding = PaddingValues(horizontal = 4.dp, vertical = 2.dp)
+                                            ) {
+                                                Icon(
+                                                    Icons.Default.TrendingUp,
+                                                    contentDescription = null,
+                                                    tint = Color(0xFF00838F),
+                                                    modifier = Modifier.size(12.dp)
+                                                )
+                                                Spacer(modifier = Modifier.width(4.dp))
+                                                Text(
+                                                    text = if (lang == "বাংলা") "বৃদ্ধি/স্যাম্পলিং" else "Growth Log",
+                                                    fontSize = 10.sp,
+                                                    color = Color(0xFF00838F)
+                                                )
+                                            }
+                                        }
+                                    }
+                                }
+                            }
                         }
-                        Spacer(modifier = Modifier.height(8.dp))
-                        Text("• Fish Species: ${pond.fishSpecies}", fontSize = 13.sp)
-                        Text("• Stocked Quantity: ${pond.stockQuantity} tails", fontSize = 13.sp)
-                        Text("• Water Conditions: ${pond.waterCondition}", fontSize = 13.sp, color = Color(0xFF0D5D8E))
-                        Text("• Release Date: ${pond.releaseDate}", fontSize = 12.sp, color = Color.Gray)
+                    }
+                }
+            }
+
+            1 -> {
+                // Diet/Feed list
+                Column(modifier = Modifier.fillMaxSize().weight(1f)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = if (lang == "বাংলা") "খাদ্য প্রয়োগ ও পুষ্টির ইতিহাস" else "Feed Tracking Ledger",
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 14.sp,
+                            color = Color(0xFF1E293B)
+                        )
+                        if (currentUser?.role == "Super Admin" || currentUser?.role == "Project Admin" || currentUser?.role == "Member") {
+                            IconButton(onClick = { showAddFeedDialog = true }) {
+                                Icon(Icons.Default.Add, contentDescription = "Add Feed", tint = Color(0xFF0D9488))
+                            }
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(6.dp))
+
+                    if (feedUsages.isEmpty()) {
+                        Box(
+                            modifier = Modifier.fillMaxWidth().weight(1f),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = if (lang == "বাংলা") "খাবারের কোনো তথ্য রেকর্ড করা পাওয়া যায়নি!" else "No recent feed tracking log entries.",
+                                color = Color.Gray,
+                                fontSize = 13.sp
+                            )
+                        }
+                    } else {
+                        LazyColumn(
+                            verticalArrangement = Arrangement.spacedBy(8.dp),
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            items(feedUsages) { feed ->
+                                Card(
+                                    colors = CardDefaults.cardColors(containerColor = Color.White),
+                                    border = BorderStroke(1.dp, Color(0xFFE2E8F0)),
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    Column(modifier = Modifier.padding(12.dp)) {
+                                        Row(
+                                            horizontalArrangement = Arrangement.SpaceBetween,
+                                            modifier = Modifier.fillMaxWidth()
+                                        ) {
+                                            Text(
+                                                text = feed.feedType,
+                                                fontWeight = FontWeight.Bold,
+                                                fontSize = 13.sp,
+                                                color = Color(0xFF1E293B)
+                                            )
+                                            Text(
+                                                text = "৳${feed.cost}",
+                                                fontWeight = FontWeight.ExtraBold,
+                                                fontSize = 13.sp,
+                                                color = Color(0xFFEF4444)
+                                            )
+                                        }
+                                        Spacer(modifier = Modifier.height(4.dp))
+                                        Row(
+                                            horizontalArrangement = Arrangement.SpaceBetween,
+                                            modifier = Modifier.fillMaxWidth()
+                                        ) {
+                                            Text(
+                                                text = "Brand: ${feed.brand} • Qty: ${feed.quantity} Kg",
+                                                fontSize = 11.sp,
+                                                color = Color.Gray
+                                            )
+                                            Text(
+                                                text = feed.date,
+                                                fontSize = 10.sp,
+                                                color = Color.Gray
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            2 -> {
+                // Growth & Stock tracking
+                Column(modifier = Modifier.fillMaxSize().weight(1f)) {
+                    Text(
+                        text = if (lang == "বাংলা") "মাছের বৃদ্ধি ও গড় সামঞ্জস্যতা" else "Fish Weight Sampling & Standard Growth Rate",
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 14.sp,
+                        color = Color(0xFF1E293B)
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    Card(
+                        colors = CardDefaults.cardColors(containerColor = Color(0xFFF0FDFA)),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Column(modifier = Modifier.padding(10.dp)) {
+                            Text(
+                                text = if (lang == "বাংলা") "💡 টেকনিক্যাল টিপস:" else "💡 Technical Guidance:",
+                                fontWeight = FontWeight.Bold,
+                                color = Color(0xFF0F766E),
+                                fontSize = 11.sp
+                            )
+                            Spacer(modifier = Modifier.height(2.dp))
+                            Text(
+                                text = if (lang == "বাংলা")
+                                    "মাসে অন্তত একবার পুকুর থেকে জাল টেনে মাছের গড় ওজন এবং বৃদ্ধি হার পরীক্ষা করুন। পানির পিএইচ (pH) সবসময় ৭.০ থেকে ৮.৫ এর মধ্যে বজায় রাখা মৎস্য প্রজেক্টের জন্য সবচেয়ে উর্বর।"
+                                else "Check fish average weights and growth velocity once a month using net casting sampling. Keeping pond pH between 7.0 and 8.5 breeds maximum yield in aquaculture projects.",
+                                fontSize = 11.sp,
+                                color = Color(0xFF0D9488)
+                            )
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(10.dp))
+
+                    // Simulated interactive sampling history
+                    Text(
+                        text = if (lang == "বাংলা") "সাম্প্রতিক বৃদ্ধি ও পরিদর্শন লগ" else "Recent Sampling and Biomechanics Records",
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 12.sp,
+                        color = Color(0xFF475569)
+                    )
+
+                    Spacer(modifier = Modifier.height(6.dp))
+
+                    val samples = listOf(
+                        Triple("Pond 1 (Main Nursery)", "Tilapia • 120g average weight • Mortality: 2", "2026-05-27"),
+                        Triple("Pond 2 (Growing Pit)", "Rohu • 420g average weight • Growth: 25g/week", "2026-05-24"),
+                        Triple("Pond 3 (Breeding Cell)", "Thai Pangash • 890g average weight • Clean", "2026-05-18")
+                    )
+
+                    LazyColumn(
+                        verticalArrangement = Arrangement.spacedBy(6.dp),
+                        modifier = Modifier.fillMaxWidth().weight(1f)
+                    ) {
+                        items(samples) { s ->
+                            Card(
+                                colors = CardDefaults.cardColors(containerColor = Color.White),
+                                border = BorderStroke(1.dp, Color(0xFFE2E8F0))
+                            ) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth().padding(10.dp),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Text(s.first, fontWeight = FontWeight.Bold, fontSize = 12.sp, color = Color(0xFF1E293B))
+                                        Text(s.second, fontSize = 11.sp, color = Color.Gray)
+                                    }
+                                    Text(s.third, fontSize = 10.sp, color = Color.Gray)
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // Dialog 1: Add New Pond
+    if (showAddPondDialog) {
+        var num by remember { mutableStateOf("") }
+        var sizeInput by remember { mutableStateOf("") }
+        var species by remember { mutableStateOf("") }
+        var stockQty by remember { mutableStateOf("") }
+        var waterQual by remember { mutableStateOf("pH 7.5, Temp 28°C") }
+
+        Dialog(onDismissRequest = { showAddPondDialog = false }) {
+            Card(
+                shape = RoundedCornerShape(16.dp),
+                colors = CardDefaults.cardColors(containerColor = Color.White),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Text(
+                        text = if (lang == "বাংলা") "নতুন পুকুর যোগ করুন" else "Add New Fishery Pond",
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 15.sp,
+                        color = Color(0xFF0F766E)
+                    )
+                    Spacer(modifier = Modifier.height(10.dp))
+
+                    OutlinedTextField(
+                        value = num,
+                        onValueChange = { num = it },
+                        label = { Text(if (lang == "বাংলা") "পুকুরের নাম / নং (e.g. Pond 4)" else "Pond Name / Number") },
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    Spacer(modifier = Modifier.height(6.dp))
+
+                    OutlinedTextField(
+                        value = sizeInput,
+                        onValueChange = { sizeInput = it },
+                        label = { Text(if (lang == "বাংলা") "আয়তন (একর) (e.g. 2.0)" else "Size (Acres)") },
+                        modifier = Modifier.fillMaxWidth(),
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
+                    )
+                    Spacer(modifier = Modifier.height(6.dp))
+
+                    OutlinedTextField(
+                        value = species,
+                        onValueChange = { species = it },
+                        label = { Text(if (lang == "বাংলা") "মাছের প্রজাতি (e.g. কাতলা)" else "Fish Species") },
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    Spacer(modifier = Modifier.height(6.dp))
+
+                    OutlinedTextField(
+                        value = stockQty,
+                        onValueChange = { stockQty = it },
+                        label = { Text(if (lang == "বাংলা") "স্টক অবমুক্তকরণ সংখ্যা" else "Stock Quantity") },
+                        modifier = Modifier.fillMaxWidth(),
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
+                    )
+                    Spacer(modifier = Modifier.height(6.dp))
+
+                    OutlinedTextField(
+                        value = waterQual,
+                        onValueChange = { waterQual = it },
+                        label = { Text(if (lang == "বাংলা") "পানির প্যারামিটার (pH, Temp)" else "Water Parameters") },
+                        modifier = Modifier.fillMaxWidth()
+                    )
+
+                    Spacer(modifier = Modifier.height(16.dp))
+
+                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                        TextButton(onClick = { showAddPondDialog = false }) {
+                            Text(if (lang == "বাংলা") "বাতিল" else "Cancel")
+                        }
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Button(
+                            onClick = {
+                                if (num.isNotBlank() && sizeInput.isNotBlank()) {
+                                    val sizeVal = sizeInput.toDoubleOrNull() ?: 1.0
+                                    val stockVal = stockQty.toIntOrNull() ?: 5000
+                                    val dateStr = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date())
+                                    viewModel.addPond(num, sizeVal, waterQual, species, stockVal, dateStr)
+                                    showAddPondDialog = false
+                                    Toast.makeText(context, if (lang == "বাংলা") "পুকুরটি সফলভাবে যোগ করা হয়েছে!" else "Pond registered successfully!", Toast.LENGTH_SHORT).show()
+                                }
+                            },
+                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF0D9488))
+                        ) {
+                            Text(if (lang == "বাংলা") "সংরক্ষণ" else "Save")
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // Dialog 2: Water Condition Update
+    showUpdateWaterDialog?.let { pond ->
+        var conditionInput by remember { mutableStateOf(pond.waterCondition) }
+
+        Dialog(onDismissRequest = { showUpdateWaterDialog = null }) {
+            Card(
+                shape = RoundedCornerShape(16.dp),
+                colors = CardDefaults.cardColors(containerColor = Color.White),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Text(
+                        text = if (lang == "বাংলা") "${pond.pondNumber} - পানির রেকর্ড" else "Update Water Quality",
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 14.sp
+                    )
+                    Spacer(modifier = Modifier.height(6.dp))
+                    Text(
+                        text = if (lang == "বাংলা") "পিএইচ (pH), তাপমাত্রা এবং অক্সিজেন (mg/L) এন্ট্রি দিন:" else "Configure pH value, temperature, and DO metrics:",
+                        fontSize = 11.sp,
+                        color = Color.Gray
+                    )
+                    Spacer(modifier = Modifier.height(10.dp))
+
+                    OutlinedTextField(
+                        value = conditionInput,
+                        onValueChange = { conditionInput = it },
+                        modifier = Modifier.fillMaxWidth(),
+                        label = { Text("Water Conditions") }
+                    )
+
+                    Spacer(modifier = Modifier.height(14.dp))
+
+                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                        TextButton(onClick = { showUpdateWaterDialog = null }) {
+                            Text(if (lang == "বাংলা") "বাতিল" else "Cancel")
+                        }
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Button(
+                            onClick = {
+                                viewModel.updatePondWaterCondition(pond.id, conditionInput)
+                                showUpdateWaterDialog = null
+                                Toast.makeText(context, if (lang == "বাংলা") "আপডেট সম্পন্ন হয়েছে!" else "Water conditions updated!", Toast.LENGTH_SHORT).show()
+                            },
+                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF0D9488))
+                        ) {
+                            Text(if (lang == "বাংলা") "হালনাগাদ করুন" else "Update")
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // Dialog 3: Fish Stock Growth / Sampling Entry
+    showAddStockHistoryDialog?.let { pond ->
+        var inputSpecies by remember { mutableStateOf(pond.fishSpecies) }
+        var avgWeightInput by remember { mutableStateOf("") }
+        var growthRateInput by remember { mutableStateOf("15g/week") }
+        var mortalityInput by remember { mutableStateOf("0") }
+
+        Dialog(onDismissRequest = { showAddStockHistoryDialog = null }) {
+            Card(
+                shape = RoundedCornerShape(16.dp),
+                colors = CardDefaults.cardColors(containerColor = Color.White),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Text(
+                        text = if (lang == "বাংলা") "মাছের বৃদ্ধি ও স্যাম্পলিং এন্ট্রি" else "Log Fish Weight Growth & Mortality",
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 14.sp,
+                        color = Color(0xFF0D9488)
+                    )
+                    Spacer(modifier = Modifier.height(10.dp))
+
+                    OutlinedTextField(
+                        value = inputSpecies,
+                        onValueChange = { inputSpecies = it },
+                        label = { Text(if (lang == "বাংলা") "মাছের নাম" else "Species name") },
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    Spacer(modifier = Modifier.height(6.dp))
+
+                    OutlinedTextField(
+                        value = avgWeightInput,
+                        onValueChange = { avgWeightInput = it },
+                        label = { Text(if (lang == "বাংলা") "গড় ওজন (গ্রামে)" else "Avg Weight (Grams)") },
+                        modifier = Modifier.fillMaxWidth(),
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
+                    )
+                    Spacer(modifier = Modifier.height(6.dp))
+
+                    OutlinedTextField(
+                        value = growthRateInput,
+                        onValueChange = { growthRateInput = it },
+                        label = { Text(if (lang == "বাংলা") "সাপ্তাহিক বৃদ্ধির হার (e.g. 15g/week)" else "Growth rate indicator") },
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    Spacer(modifier = Modifier.height(6.dp))
+
+                    OutlinedTextField(
+                        value = mortalityInput,
+                        onValueChange = { mortalityInput = it },
+                        label = { Text(if (lang == "বাংলা") "মৃত মাছের সংখ্যা (থাকলে)" else "Mortality count") },
+                        modifier = Modifier.fillMaxWidth(),
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
+                    )
+
+                    Spacer(modifier = Modifier.height(14.dp))
+
+                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                        TextButton(onClick = { showAddStockHistoryDialog = null }) {
+                            Text(if (lang == "বাংলা") "বাতিল" else "Cancel")
+                        }
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Button(
+                            onClick = {
+                                val weightVal = avgWeightInput.toDoubleOrNull() ?: 0.0
+                                val mortVal = mortalityInput.toIntOrNull() ?: 0
+                                val curDate = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date())
+                                viewModel.addFishStockHistory(pond.id, pond.stockQuantity, inputSpecies, weightVal, growthRateInput, mortVal, curDate)
+                                showAddStockHistoryDialog = null
+                                Toast.makeText(context, if (lang == "বাংলা") "বৃদ্ধির রেকর্ড যোগ হয়েছে!" else "Growth metrics recorded!", Toast.LENGTH_SHORT).show()
+                            },
+                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF0D9488))
+                        ) {
+                            Text(if (lang == "বাংলা") "সংরক্ষণ" else "Save")
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // Dialog 4: Add Feed Usage Log
+    if (showAddFeedDialog) {
+        var feedType by remember { mutableStateOf("গ্রোয়ার প্লেট (Grower Pellets)") }
+        var brand by remember { mutableStateOf("CPI") }
+        var quantityInput by remember { mutableStateOf("") }
+        var costInput by remember { mutableStateOf("") }
+
+        Dialog(onDismissRequest = { showAddFeedDialog = false }) {
+            Card(
+                shape = RoundedCornerShape(16.dp),
+                colors = CardDefaults.cardColors(containerColor = Color.White),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Text(
+                        text = if (lang == "বাংলা") "খাদ্য প্রয়োগ ও পুষ্টি এন্ট্রি" else "Record Feed Usage",
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 14.sp,
+                        color = Color(0xFF0F766E)
+                    )
+                    Spacer(modifier = Modifier.height(10.dp))
+
+                    OutlinedTextField(
+                        value = feedType,
+                        onValueChange = { feedType = it },
+                        label = { Text(if (lang == "বাংলা") "খাবারের প্রকার (e.g. Grower Pellets)" else "Feed Type") },
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    Spacer(modifier = Modifier.height(6.dp))
+
+                    OutlinedTextField(
+                        value = brand,
+                        onValueChange = { brand = it },
+                        label = { Text(if (lang == "বাংলা") "ব্র্যান্ড / প্রস্তুতকারক" else "Brand") },
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    Spacer(modifier = Modifier.height(6.dp))
+
+                    OutlinedTextField(
+                        value = quantityInput,
+                        onValueChange = { quantityInput = it },
+                        label = { Text(if (lang == "বাংলা") "পরিমাণ (কেজি)" else "Quantity (Kgs)") },
+                        modifier = Modifier.fillMaxWidth(),
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
+                    )
+                    Spacer(modifier = Modifier.height(6.dp))
+
+                    OutlinedTextField(
+                        value = costInput,
+                        onValueChange = { costInput = it },
+                        label = { Text(if (lang == "বাংলা") "মোট খরচ (টাকা)" else "Cost (Taka)") },
+                        modifier = Modifier.fillMaxWidth(),
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
+                    )
+
+                    Spacer(modifier = Modifier.height(16.dp))
+
+                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                        TextButton(onClick = { showAddFeedDialog = false }) {
+                            Text(if (lang == "বাংলা") "বাতিল" else "Cancel")
+                        }
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Button(
+                            onClick = {
+                                if (quantityInput.isNotBlank() && costInput.isNotBlank()) {
+                                    val qty = quantityInput.toDoubleOrNull() ?: 1.0
+                                    val cost = costInput.toDoubleOrNull() ?: 100.0
+                                    val dat = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date())
+                                    viewModel.addFeedUsage(feedType, brand, qty, cost, qty / 10.0, dat)
+                                    showAddFeedDialog = false
+                                    Toast.makeText(context, if (lang == "বাংলা") "খাদ্য হিসাব সংরক্ষণ করা হয়েছে (ব্যয় হিসেবেও যুক্ত হয়েছে)!" else "Feed entry saved and Expense recorded!", Toast.LENGTH_SHORT).show()
+                                }
+                            },
+                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF0D9488))
+                        ) {
+                            Text(if (lang == "বাংলা") "সংরক্ষণ" else "Save")
+                        }
                     }
                 }
             }
